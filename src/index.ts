@@ -172,7 +172,9 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
             this.__setStatus('error');
             this.__connect();
 
-            this.emit('error', err);
+            // the underlying resource failed
+            // we will try to restore it, so let's just inform user about this failure
+            this.emit('failure', err);
         });
 
         res.once('close', () => {
@@ -213,14 +215,11 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
 
                 return this.__factory();
             },
-            Object.assign(
-                {
-                    onFailedAttempt: (err: FailedAttemptError) => {
-                        this.emit('retry', err);
-                    },
+            Object.assign({}, this.__opts.retry, {
+                onFailedAttempt: (err: FailedAttemptError) => {
+                    this.emit('retry', err);
                 },
-                this.__opts.retry,
-            ),
+            }),
         )
             .then((res: T) => {
                 if (this.__status === 'closing') {
@@ -240,7 +239,9 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
                 this.__err = err;
                 this.__setStatus('error');
 
-                this.emit('failure', err);
+                // failed to restore the resource
+                // nothing we can do rather than notify about it
+                this.emit('error', err);
 
                 return Promise.resolve(null);
             });

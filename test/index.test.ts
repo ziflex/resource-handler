@@ -79,8 +79,8 @@ describe('Resource handlers', () => {
             return mock;
         });
 
-        rh.on('error', () => {
-            console.log('caught error');
+        rh.on('failure', () => {
+            console.log('caught failure');
         });
 
         const r = await rh.resource();

@@ -9,7 +9,8 @@
         "clean": "rimraf lib",
         "lint": "eslint src --ext .ts",
         "test": "cross-env NODE_ENV=test mocha",
-        "build": "npm run lint && npm run clean && tsc -b tsconfig.json"
+        "build": "cross-env NODE_ENV=production npm run lint && npm run clean && tsc -b tsconfig.json",
+        "prepublish": "npm run test && npm run build"
     },
     "repository": {
         "type": "git",
