@@ -24,6 +24,7 @@ classes/
 **/.DS_Store
 dump.rdb
 src
+docs
 test
 .eslintrc.js
 .prettierrc.js
