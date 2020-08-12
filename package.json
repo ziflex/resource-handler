@@ -5,6 +5,7 @@
     "main": "lib/index.js",
     "scripts": {
         "gh-pages": "git subtree push --prefix docs origin gh-pages",
+        "doc": "rimraf docs && typedoc --excludeProtected --excludePrivate --out docs && touch docs/.nojekyll",
         "fmt": "pretty-quick",
         "clean": "rimraf lib",
         "lint": "eslint src --ext .ts",
