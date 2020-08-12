@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { expect } from 'chai';
+import sinon from 'sinon';
 import { Status, Resource, ResourceHandler } from '../src';
 
 class Mock extends EventEmitter implements Resource {
@@ -92,5 +93,32 @@ describe('Resource handlers', () => {
         const r2 = await rh.resource();
 
         expect(r2.status()).to.eq('connected');
+    });
+
+    it('should allow to use custom closer', async () => {
+        const spy = sinon.spy();
+        const rh = new ResourceHandler(
+            async () => {
+                const mock = new Mock();
+                await mock.connect();
+
+                return mock;
+            },
+            {
+                closer: (i) => {
+                    spy();
+                    return i.close();
+                },
+            },
+        );
+
+        const r = await rh.resource();
+
+        expect(r.status()).to.eq('connected');
+
+        await rh.close();
+
+        expect(r.status()).to.eq('closed');
+        expect(spy.calledOnce).to.be.true;
     });
 });

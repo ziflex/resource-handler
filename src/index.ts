@@ -48,7 +48,7 @@ export interface Options<T extends Resource> {
     /**
      * Resource name
      */
-    name: string;
+    name?: string;
 
     /**
      * Function that is responsbile for resource closure.
@@ -158,7 +158,7 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
 
         res.removeAllListeners();
 
-        if (this.__opts.closer) {
+        if (typeof this.__opts.closer === 'function') {
             return this.__opts.closer(res);
         }
 
