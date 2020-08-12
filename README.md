@@ -10,6 +10,9 @@ There are some scenarios when you need to monitor an async resource like a datab
 npm i resource-handler
 ```
 
+## API
+You can find API [here](https://ziflex.github.io/resource-handler).
+
 ## Quick start
 
 ```typescript
