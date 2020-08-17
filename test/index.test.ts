@@ -3,6 +3,12 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 import { Status, Resource, ResourceHandler } from '../src';
 
+function sleep(time: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, time);
+    });
+}
+
 class Mock extends EventEmitter implements Resource {
     private __status: Status;
 
@@ -24,7 +30,7 @@ class Mock extends EventEmitter implements Resource {
                 resolve();
 
                 this.emit('error', err);
-            }, 100);
+            }, 50);
         });
     }
 
@@ -38,7 +44,7 @@ class Mock extends EventEmitter implements Resource {
                 resolve();
 
                 this.emit('connect');
-            }, 500);
+            }, 250);
         });
     }
 
@@ -52,7 +58,7 @@ class Mock extends EventEmitter implements Resource {
                 resolve();
 
                 this.emit('close');
-            }, 250);
+            }, 100);
         });
     }
 }
@@ -88,7 +94,9 @@ describe('Resource handlers', () => {
 
         await r.error(new Error('test'));
 
-        expect(r.status()).to.eq('error');
+        await sleep(100);
+
+        expect(r.status()).to.eq('closed');
 
         const r2 = await rh.resource();
 
@@ -120,5 +128,59 @@ describe('Resource handlers', () => {
 
         expect(r.status()).to.eq('closed');
         expect(spy.calledOnce).to.be.true;
+    });
+
+    describe('events', () => {
+        it('should pass an error object on "failure"', async () => {
+            const rh = new ResourceHandler(async () => {
+                const mock = new Mock();
+                await mock.connect();
+
+                return mock;
+            });
+
+            const r1 = await rh.resource();
+            const promise = new Promise((resolve, reject) => {
+                rh.on('failure', (err: Error) => {
+                    try {
+                        expect(err.message).to.eq('test');
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
+
+            await r1.error(new Error('test'));
+
+            return promise;
+        });
+
+        it('should pass a new resource on "open"', async () => {
+            const rh = new ResourceHandler(async () => {
+                const mock = new Mock();
+                await mock.connect();
+
+                return mock;
+            });
+
+            const r1 = await rh.resource();
+            const promise = new Promise((resolve, reject) => {
+                rh.on('open', (nextRes) => {
+                    try {
+                        expect(r1).to.not.equal(nextRes);
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
+
+            await r1.error(new Error('test'));
+
+            await rh.resource();
+
+            return promise;
+        });
     });
 });
