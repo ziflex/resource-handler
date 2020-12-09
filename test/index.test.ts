@@ -4,7 +4,7 @@ import sinon from 'sinon';
 import { Status, Resource, ResourceHandler } from '../src';
 
 function sleep(time: number): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
         setTimeout(resolve, time);
     });
 }
@@ -23,7 +23,7 @@ class Mock extends EventEmitter implements Resource {
     }
 
     public error(err: Error): Promise<void> {
-        return new Promise((resolve) => {
+        return new Promise<void>((resolve) => {
             setTimeout(() => {
                 this.__status = 'error';
 
@@ -37,7 +37,7 @@ class Mock extends EventEmitter implements Resource {
     public connect(): Promise<void> {
         this.__status = 'connecting';
 
-        return new Promise((resolve) => {
+        return new Promise<void>((resolve) => {
             setTimeout(() => {
                 this.__status = 'connected';
 
@@ -51,7 +51,7 @@ class Mock extends EventEmitter implements Resource {
     public close(): Promise<void> {
         this.__status = 'closing';
 
-        return new Promise((resolve) => {
+        return new Promise<void>((resolve) => {
             setTimeout(() => {
                 this.__status = 'closed';
 
@@ -140,7 +140,7 @@ describe('Resource handlers', () => {
             });
 
             const r1 = await rh.resource();
-            const promise = new Promise((resolve, reject) => {
+            const promise = new Promise<void>((resolve, reject) => {
                 rh.on('failure', (err: Error) => {
                     try {
                         expect(err.message).to.eq('test');
@@ -165,7 +165,7 @@ describe('Resource handlers', () => {
             });
 
             const r1 = await rh.resource();
-            const promise = new Promise((resolve, reject) => {
+            const promise = new Promise<void>((resolve, reject) => {
                 rh.on('open', (nextRes) => {
                     try {
                         expect(r1).to.not.equal(nextRes);
