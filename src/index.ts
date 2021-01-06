@@ -44,11 +44,38 @@ export type RetryError = FailedAttemptError;
 export type RetryOptions = TimeoutsOptions;
 
 /**
- * Resource is a closable and observable object that needs to be handled.
+ * Eevent subscription that allows to unsubscribe from a given event.
  */
-export interface Resource extends events.EventEmitter {
+export type Subscription = () => void;
+
+/**
+ * Event handler.
+ */
+export type Subscriber = (...args: any[]) => void;
+
+/**
+ * An observable object can have one or more subscribers.
+ */
+export interface Observable {
+    /**
+     * Adds an subscriber.
+     * @param event - Event name to observe.
+     * @param subscriber - Event name handler.
+     */
+    subscribe(event: string, subscriber: Subscriber): Subscription;
+}
+
+/**
+ * A closable object that supports an async closing operation.
+ */
+export interface Closable {
     close(): Promise<void>;
 }
+
+/**
+ * Resource is a closable and observable object that needs to be handled.
+ */
+export interface Resource extends Observable, Closable {}
 
 /**
  * Resource closer is a function that creates a new resource.
@@ -85,20 +112,20 @@ export interface Options<T extends Resource> {
     events?: EventBinding[];
 }
 /**
- * ResourceHandler is a class that holds an async resource and recreates it wenevr it fails
+ * ResourceHandler is a class that holds a resource and recreates it whenever it fails.
  * @param factory - Resource factory.
  * @param opts - Options.
  */
-export class ResourceHandler<T extends Resource> extends events.EventEmitter {
+export class ResourceHandler<T extends Resource> implements Observable, Closable {
+    private readonly __factory: ResourceFactory<T>;
+    private readonly __subscriptions: Subscription[];
+    private readonly __emitter: events.EventEmitter;
     private __resource: Promise<T | null>;
-    private __factory: ResourceFactory<T>;
     private __err?: Error;
     private __status: Status;
     private __opts: Options<T>;
 
     constructor(factory: ResourceFactory<T>, opts?: Options<T>) {
-        super();
-
         this.__opts = {
             name: opts?.name || 'Resource',
             closer: opts?.closer,
@@ -114,6 +141,8 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
         this.__factory = factory;
         this.__status = 'connecting';
         this.__resource = undefined as any; // TS hack. We set in __connect
+        this.__subscriptions = [];
+        this.__emitter = new events.EventEmitter();
         this.__connect(true);
     }
 
@@ -182,48 +211,61 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
             return Promise.resolve();
         }
 
-        this.__unsubscribeFromResource(res);
+        this.__unsubscribeFromResource();
 
         return this.__closeResource(res);
     }
 
+    public subscribe(event: string, subscriber: Subscriber): Subscription {
+        this.__emitter.on(event, subscriber);
+
+        return () => {
+            this.__emitter.off(event, subscriber);
+        };
+    }
+
     private __subscribeToResource(res: T): void {
-        res.once('error', (err) => {
-            this.__unsubscribeFromResource(res);
-            this.__err = err;
-            this.__setStatus('error');
+        this.__subscriptions.push(
+            res.subscribe('error', (err) => {
+                this.__unsubscribeFromResource();
+                this.__err = err;
+                this.__setStatus('error');
 
-            // close resource if needed
-            this.__closeResource(res).finally(() => {
-                this.__connect();
+                // close resource if needed
+                this.__closeResource(res).finally(() => {
+                    this.__connect();
 
-                // the underlying resource failed
-                // we will try to restore it, thus we just inform a user about this failure
-                this.emit('failure', err);
-            });
-        });
+                    // the underlying resource failed
+                    // we will try to restore it, thus we just inform a user about this failure
+                    this.__emitter.emit('failure', err);
+                });
+            }),
+        );
 
-        res.once('close', () => {
-            this.__unsubscribeFromResource(res);
-            this.__setToClose();
-        });
+        this.__subscriptions.push(
+            res.subscribe('close', () => {
+                this.__unsubscribeFromResource();
+                this.__setToClose();
+            }),
+        );
 
         if (Array.isArray(this.__opts.events)) {
             this.__opts.events.forEach((i) => {
                 const from = typeof i === 'string' ? i : i.from;
                 const to = typeof i === 'string' ? i : i.to;
 
-                res.on(from, (...args) => {
-                    this.emit(to, ...args);
-                });
+                this.__subscriptions.push(
+                    res.subscribe(from, (...args) => {
+                        this.__emitter.emit(to, ...args);
+                    }),
+                );
             });
         }
     }
 
-    private __unsubscribeFromResource(res: T): void {
-        if (typeof res.removeAllListeners === 'function') {
-            res.removeAllListeners();
-        }
+    private __unsubscribeFromResource(): void {
+        this.__subscriptions.forEach((i) => i());
+        this.__subscriptions.length = 0;
     }
 
     private __connect(force = false): void {
@@ -252,7 +294,7 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
             },
             Object.assign({}, this.__opts.retry, {
                 onFailedAttempt: (err: FailedAttemptError) => {
-                    this.emit('retry', err);
+                    this.__emitter.emit('retry', err);
                 },
             }),
         )
@@ -266,7 +308,7 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
                 this.__subscribeToResource(res);
                 this.__setStatus('connected');
 
-                this.emit('open', res);
+                this.__emitter.emit('open', res);
 
                 return res;
             })
@@ -276,7 +318,7 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
 
                 // failed to restore the resource
                 // nothing we can do rather than notify about it
-                this.emit('error', err);
+                this.__emitter.emit('error', err);
 
                 return Promise.resolve(null);
             });
@@ -287,15 +329,15 @@ export class ResourceHandler<T extends Resource> extends events.EventEmitter {
         this.__err = undefined;
         this.__setStatus('closed');
 
-        this.emit('close');
-        this.removeAllListeners();
+        this.__emitter.emit('close');
+        this.__emitter.removeAllListeners();
     }
 
     private __setStatus(nextStatus: Status): void {
         this.__status = nextStatus;
 
         process.nextTick(() => {
-            this.emit('status', nextStatus);
+            this.__emitter.emit('status', nextStatus);
         });
     }
 

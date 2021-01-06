@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { expect } from 'chai';
 import sinon from 'sinon';
-import { Status, Resource, ResourceHandler } from '../src';
+import { Status, Resource, ResourceHandler, Subscriber, Subscription } from '../src';
 
 function sleep(time: number): Promise<void> {
     return new Promise<void>((resolve) => {
@@ -9,13 +9,21 @@ function sleep(time: number): Promise<void> {
     });
 }
 
-class Mock extends EventEmitter implements Resource {
+class Mock implements Resource {
+    private readonly __emitter: EventEmitter;
     private __status: Status;
 
     constructor() {
-        super();
-
+        this.__emitter = new EventEmitter();
         this.__status = 'closed';
+    }
+
+    public subscribe(event: string, subscriber: Subscriber): Subscription {
+        this.__emitter.on(event, subscriber);
+
+        return () => {
+            this.__emitter.off(event, subscriber);
+        };
     }
 
     public status(): Status {
@@ -29,7 +37,7 @@ class Mock extends EventEmitter implements Resource {
 
                 resolve();
 
-                this.emit('error', err);
+                this.__emitter.emit('error', err);
             }, 50);
         });
     }
@@ -43,7 +51,7 @@ class Mock extends EventEmitter implements Resource {
 
                 resolve();
 
-                this.emit('connect');
+                this.__emitter.emit('connect');
             }, 250);
         });
     }
@@ -57,7 +65,7 @@ class Mock extends EventEmitter implements Resource {
 
                 resolve();
 
-                this.emit('close');
+                this.__emitter.emit('close');
             }, 100);
         });
     }
@@ -86,7 +94,7 @@ describe('Resource handlers', () => {
             return mock;
         });
 
-        rh.on('failure', () => {
+        rh.subscribe('failure', () => {
             console.log('caught failure');
         });
 
@@ -141,7 +149,7 @@ describe('Resource handlers', () => {
 
             const r1 = await rh.resource();
             const promise = new Promise<void>((resolve, reject) => {
-                rh.on('failure', (err: Error) => {
+                rh.subscribe('failure', (err: Error) => {
                     try {
                         expect(err.message).to.eq('test');
                         resolve();
@@ -166,7 +174,7 @@ describe('Resource handlers', () => {
 
             const r1 = await rh.resource();
             const promise = new Promise<void>((resolve, reject) => {
-                rh.on('open', (nextRes) => {
+                rh.subscribe('open', (nextRes) => {
                     try {
                         expect(r1).to.not.equal(nextRes);
                         resolve();
