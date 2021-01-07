@@ -19,10 +19,35 @@ You can find API [here](https://ziflex.github.io/resource-handler).
 ## Quick start
 
 ```typescript
+import * as amqp from 'amqplib';
 import { ResourceHandler } from 'resource-handler';
 
 const rh = new ResourceHandler(async () => {
-    return connect();
+    return amqp.connect(opts);
+});
+
+const connection = await rh.resource();
+
+await rh.close();
+```
+
+### Retry options
+By default, ``resource-handler`` uses default values for restoring a given resouce. You can tune it to meet your needs:
+
+```typescript
+import * as amqp from 'amqplib';
+import { ResourceHandler } from 'resource-handler';
+
+const rh = new ResourceHandler(async () => {
+    return amqp.connect(opts);
+}, {
+    retry: {
+        retries: 5,
+        minTimeout: 2000,
+        maxTimeout: 10000,
+        factor: 1.5,
+        randomize: true,
+    },
 });
 
 const connection = await rh.resource();
@@ -31,6 +56,7 @@ await rh.close();
 ```
 
 ### Custom closer
+In case your resource has other than ``.close`` method for closing its operation, you can provide a custom closer function:
 
 ```typescript
 import { ResourceHandler } from 'resource-handler';
