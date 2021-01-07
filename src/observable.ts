@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+function subscribeInternal(this: Emitter, event: string | symbol, subscriber: Subscriber): Subscription {
+    this.on(event, subscriber);
+
+    return () => {
+        this.off(event, subscriber);
+    };
+}
+
 /**
  * Eevent subscription that allows to unsubscribe from a given event.
  */
@@ -16,9 +24,10 @@ export type Subscriber = (...args: any[]) => void;
  */
 export interface Observable {
     /**
-     * Adds an subscriber.
-     * @param event - Event name to observe.
-     * @param subscriber - Event name handler.
+     * Adds the subscriber function to the end of the subscribers array for the event named eventName.
+     * No checks are made to see if the subscriber has already been added.
+     * @param eventName - Target event name.
+     * @param subscriber - The callback function.
      */
     subscribe(event: string | symbol, subscriber: Subscriber): Subscription;
 }
@@ -27,9 +36,20 @@ export interface Observable {
  * An object that derives from EventEmitter.
  */
 export interface Emitter {
-    on(event: string | symbol, subscriber: Subscriber): this;
+    /**
+     * Adds the subscriber function to the end of the subscribers array for the event named eventName.
+     * No checks are made to see if the subscriber has already been added.
+     * @param eventName - Target event name.
+     * @param subscriber - The callback function.
+     */
+    on(eventName: string | symbol, subscriber: Subscriber): this;
 
-    off(event: string | symbol, subscriber: Subscriber): this;
+    /**
+     * Removes the specified subscriber from the subscriber array for the event named eventName.
+     * @param eventName - Target event name.
+     * @param subscriber - The callback function.
+     */
+    off(eventName: string | symbol, subscriber: Subscriber): this;
 }
 
 /**
@@ -37,7 +57,7 @@ export interface Emitter {
  * @param target - Target object to inspect.
  */
 export function isObservable(target: any): boolean {
-    return typeof target?.subscribe === 'function';
+    return typeof (target as Observable)?.subscribe === 'function';
 }
 
 /**
@@ -45,7 +65,7 @@ export function isObservable(target: any): boolean {
  * @param target - Target object to inspect.
  */
 export function isEmitter(target: any): boolean {
-    return typeof target?.on === 'function' && typeof target?.off === 'function';
+    return typeof (target as Emitter)?.on === 'function' && typeof (target as Emitter)?.off === 'function';
 }
 
 /**
@@ -58,13 +78,7 @@ export function toObservable<T extends Emitter>(target: T): Observable {
     }
 
     return {
-        subscribe(event, subscriber) {
-            target.on(event, subscriber);
-
-            return () => {
-                target.off(event, subscriber);
-            };
-        },
+        subscribe: subscribeInternal.bind(target),
     };
 }
 
@@ -83,11 +97,5 @@ export function subscribe(target: Observable | Emitter, event: string | symbol, 
         throw new Error('Resource must implement either Observable or Emitter interfaces');
     }
 
-    const emitter = target as Emitter;
-
-    emitter.on(event, subscriber);
-
-    return () => {
-        emitter.off(event, subscriber);
-    };
+    return subscribeInternal.call(target as Emitter, event, subscriber);
 }

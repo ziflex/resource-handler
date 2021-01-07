@@ -105,22 +105,33 @@
 					<a name="off" class="tsd-anchor"></a>
 					<h3>off</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-interface">
-						<li class="tsd-signature tsd-kind-icon">off<span class="tsd-signature-symbol">(</span>event<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span>, subscriber<span class="tsd-signature-symbol">: </span><a href="../modules.html#subscriber" class="tsd-signature-type" data-tsd-kind="Type alias">Subscriber</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="emitter.html" class="tsd-signature-type" data-tsd-kind="Interface">Emitter</a></li>
+						<li class="tsd-signature tsd-kind-icon">off<span class="tsd-signature-symbol">(</span>eventName<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span>, subscriber<span class="tsd-signature-symbol">: </span><a href="../modules.html#subscriber" class="tsd-signature-type" data-tsd-kind="Type alias">Subscriber</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="emitter.html" class="tsd-signature-type" data-tsd-kind="Interface">Emitter</a></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/ziflex/resource-handler/blob/456e339/src/observable.ts#L32">observable.ts:32</a></li>
+									<li>Defined in <a href="https://github.com/ziflex/resource-handler/blob/8bae79e/src/observable.ts#L52">observable.ts:52</a></li>
 								</ul>
 							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>Removes the specified subscriber from the subscriber array for the event named eventName.</p>
+								</div>
+							</div>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>event: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span></h5>
+									<h5>eventName: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span></h5>
+									<div class="tsd-comment tsd-typography">
+										<p>Target event name.</p>
+									</div>
 								</li>
 								<li>
 									<h5>subscriber: <a href="../modules.html#subscriber" class="tsd-signature-type" data-tsd-kind="Type alias">Subscriber</a></h5>
+									<div class="tsd-comment tsd-typography">
+										<p>The callback function.</p>
+									</div>
 								</li>
 							</ul>
 							<h4 class="tsd-returns-title">Returns <a href="emitter.html" class="tsd-signature-type" data-tsd-kind="Interface">Emitter</a></h4>
@@ -131,22 +142,34 @@
 					<a name="on" class="tsd-anchor"></a>
 					<h3>on</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-interface">
-						<li class="tsd-signature tsd-kind-icon">on<span class="tsd-signature-symbol">(</span>event<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span>, subscriber<span class="tsd-signature-symbol">: </span><a href="../modules.html#subscriber" class="tsd-signature-type" data-tsd-kind="Type alias">Subscriber</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="emitter.html" class="tsd-signature-type" data-tsd-kind="Interface">Emitter</a></li>
+						<li class="tsd-signature tsd-kind-icon">on<span class="tsd-signature-symbol">(</span>eventName<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span>, subscriber<span class="tsd-signature-symbol">: </span><a href="../modules.html#subscriber" class="tsd-signature-type" data-tsd-kind="Type alias">Subscriber</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="emitter.html" class="tsd-signature-type" data-tsd-kind="Interface">Emitter</a></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/ziflex/resource-handler/blob/456e339/src/observable.ts#L30">observable.ts:30</a></li>
+									<li>Defined in <a href="https://github.com/ziflex/resource-handler/blob/8bae79e/src/observable.ts#L45">observable.ts:45</a></li>
 								</ul>
 							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>Adds the subscriber function to the end of the subscribers array for the event named eventName.
+									No checks are made to see if the subscriber has already been added.</p>
+								</div>
+							</div>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>event: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span></h5>
+									<h5>eventName: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span></h5>
+									<div class="tsd-comment tsd-typography">
+										<p>Target event name.</p>
+									</div>
 								</li>
 								<li>
 									<h5>subscriber: <a href="../modules.html#subscriber" class="tsd-signature-type" data-tsd-kind="Type alias">Subscriber</a></h5>
+									<div class="tsd-comment tsd-typography">
+										<p>The callback function.</p>
+									</div>
 								</li>
 							</ul>
 							<h4 class="tsd-returns-title">Returns <a href="emitter.html" class="tsd-signature-type" data-tsd-kind="Interface">Emitter</a></h4>
