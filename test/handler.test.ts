@@ -370,4 +370,70 @@ describe('Resource handler', () => {
             });
         });
     });
+
+    describe('onFailedAttempt', () => {
+        it('should be called', async () => {
+            debugger;
+            const spy = sinon.spy();
+
+            try {
+                const rh = new ResourceHandler(() => Promise.reject(new Error()), {
+                    retry: {
+                        onFailedAttempt: spy,
+                        retries: 2,
+                        factor: 1,
+                        forever: false,
+                        randomize: false,
+                        minTimeout: 100,
+                        maxTimeout: 500,
+                    },
+                });
+
+                await rh.resource();
+            } catch {
+            } finally {
+                expect(spy.callCount).to.eq(3);
+            }
+        }).timeout(10000);
+
+        it('should abort if a given callback throws an error', async () => {
+            const errors = [new Error('1'), new Error('2'), new Error('3'), new Error('4'), new Error('5')];
+            const spy = sinon.spy();
+            const rh = new ResourceHandler(
+                async () => {
+                    const err = errors.shift();
+
+                    if (err) {
+                        return Promise.reject(err);
+                    }
+
+                    return new ObservableResourceMock();
+                },
+                {
+                    retry: {
+                        retries: 4,
+                        factor: 1,
+                        forever: false,
+                        randomize: false,
+                        minTimeout: 100,
+                        maxTimeout: 500,
+                        onFailedAttempt(err) {
+                            spy(err);
+
+                            if (err.message === '2') {
+                                throw new Error('Test');
+                            }
+                        },
+                    },
+                },
+            );
+
+            try {
+                await rh.resource();
+            } catch {
+            } finally {
+                expect(spy.callCount).to.eq(2);
+            }
+        }).timeout(10000);
+    });
 });
