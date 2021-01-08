@@ -4,3 +4,4 @@ require:
     - 'source-map-support/register'
 recursive: true
 spec: './test/**/*.test.ts'
+timeout: 5000

@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as events from 'events';
 import retry, { FailedAttemptError, AbortError } from 'p-retry';
-import { TimeoutsOptions } from 'retry';
 import { Observable, Subscriber, Subscription, subscribe } from './observable';
 import { Closable, Resource } from './resource';
 
@@ -43,7 +42,7 @@ export type RetryError = FailedAttemptError;
 /**
  * Handler retry options.
  */
-export type RetryOptions = TimeoutsOptions;
+export type RetryOptions = retry.Options;
 
 /**
  * Resource closer is a function that creates a new resource.
@@ -94,6 +93,8 @@ export class ResourceHandler<T extends Resource> implements Observable, Closable
     private __opts: Options<T>;
 
     constructor(factory: ResourceFactory<T>, opts?: Options<T>) {
+        const onFailedAttempt = opts?.retry?.onFailedAttempt;
+
         this.__opts = {
             name: opts?.name || 'Resource',
             closer: opts?.closer,
@@ -104,6 +105,13 @@ export class ResourceHandler<T extends Resource> implements Observable, Closable
                 maxTimeout: opts?.retry?.maxTimeout || Infinity,
                 factor: opts?.retry?.factor || 2,
                 randomize: opts?.retry?.randomize || false,
+                onFailedAttempt: async (err: FailedAttemptError) => {
+                    this.__emitter.emit('retry', err);
+
+                    if (typeof onFailedAttempt === 'function') {
+                        return onFailedAttempt(err);
+                    }
+                },
             },
         };
         this.__factory = factory;
@@ -250,22 +258,15 @@ export class ResourceHandler<T extends Resource> implements Observable, Closable
 
         this.__setStatus('connecting');
         this.__err = undefined;
-        this.__resource = retry(
-            () => {
-                if (this.__status === 'closing') {
-                    this.__setToClose();
+        this.__resource = retry(() => {
+            if (this.__status === 'closing') {
+                this.__setToClose();
 
-                    throw new AbortError(`Connection is aborted`);
-                }
+                throw new AbortError(`Connection is aborted`);
+            }
 
-                return this.__factory();
-            },
-            Object.assign({}, this.__opts.retry, {
-                onFailedAttempt: (err: FailedAttemptError) => {
-                    this.__emitter.emit('retry', err);
-                },
-            }),
-        )
+            return this.__factory();
+        }, this.__opts.retry)
             .then((res: T) => {
                 if (this.__status === 'closing') {
                     this.__setToClose();
