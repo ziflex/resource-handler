@@ -9,7 +9,7 @@
         "fmt": "pretty-quick",
         "clean": "rimraf lib",
         "lint": "eslint src --ext .ts",
-        "test": "cross-env NODE_ENV=test mocha $NODE_OPTS",
+        "test": "cross-env NODE_ENV=test nyc mocha $NODE_OPTS",
         "build": "cross-env NODE_ENV=production npm run lint && npm run clean && tsc -b tsconfig.json",
         "prepublish": "npm run test && npm run build"
     },
@@ -32,14 +32,19 @@
         "reconnect"
     ],
     "homepage": "https://github.com/ziflex/resource-handler#readme",
+    "dependencies": {
+        "p-retry": "^4.6.1"
+    },
     "devDependencies": {
         "@types/chai": "^4.2.22",
+        "@types/chai-as-promised": "^7.1.4",
         "@types/mocha": "^9.0.0",
         "@types/node": "^16.9.4",
         "@types/sinon": "^10.0.3",
         "@typescript-eslint/eslint-plugin": "^4.31.2",
         "@typescript-eslint/parser": "^4.31.2",
         "chai": "^4.3.4",
+        "chai-as-promised": "^7.1.1",
         "cross-env": "^7.0.3",
         "eslint": "^7.32.0",
         "eslint-config-prettier": "^8.3.0",
@@ -47,6 +52,7 @@
         "eslint-plugin-prettier": "^4.0.0",
         "mocha": "^9.1.1",
         "mocha-lcov-reporter": "^1.3.0",
+        "nyc": "^15.1.0",
         "prettier": "^2.4.1",
         "pretty-quick": "^3.1.1",
         "rimraf": "^3.0.2",
@@ -55,8 +61,5 @@
         "ts-node": "^10.2.1",
         "typedoc": "^0.22.4",
         "typescript": "^4.4.3"
-    },
-    "dependencies": {
-        "p-retry": "^4.6.1"
     }
 }
