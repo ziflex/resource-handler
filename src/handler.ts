@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as events from 'events';
 import retry, { FailedAttemptError, AbortError } from 'p-retry';
-import { Observable, Subscriber, Subscription, subscribe } from './observable';
+import { Observable, Subscriber, Subscription, subscribe, AnyEvent } from './observable';
 import { Closable, Resource } from './resource';
 
 /**
@@ -83,7 +83,7 @@ export interface Options<T extends Resource> {
  * @param factory - Resource factory.
  * @param opts - Options.
  */
-export class ResourceHandler<T extends Resource> implements Observable, Closable {
+export class ResourceHandler<T extends Resource> implements Observable<Event | AnyEvent>, Closable {
     private readonly __factory: ResourceFactory<T>;
     private readonly __subscriptions: Subscription[];
     private readonly __emitter: events.EventEmitter;
