@@ -1,18 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as events from 'events';
 import retry, { FailedAttemptError, AbortError } from 'p-retry';
+import { Lock } from './lock';
+import { OpenAbortedError, ResourceClosedError, CloseError, ResourceUnavailableError } from './errors';
 import { Observable, Subscriber, Subscription, subscribe, AnyEvent } from './observable';
-import { Closable, Resource } from './resource';
-
-/**
- * Handler life cycle statuses.
- */
-export type Status = 'connecting' | 'connected' | 'error' | 'closing' | 'closed';
+import { Resource, ResourceCloser, ResourceFactory } from './resource';
+import { isErrored, isAborted, Status, isClosed, isOpen } from './status';
 
 /**
  * Handler default events.
+ * "open" - Resource is available for consumption.
+ * "close" - Resource is closed.
+ * "status" - ResourceHandler changed its Status.
+ * "retry" - ResourceHandler is retrying to create a resource.
+ * "failure" - Resource has failed by emitting "error" event.
+ * "error" - Creation of Resource failed and no further attempts will be made.
  */
-export type Event = 'open' | 'close' | 'error' | 'status' | 'retry';
+export type Event = 'open' | 'close' | 'status' | 'retry' | 'failure' | 'error';
 
 /**
  * Event binding object describing how to transform event names during proxying.
@@ -45,16 +49,6 @@ export type RetryError = FailedAttemptError;
 export type RetryOptions = retry.Options;
 
 /**
- * Resource closer is a function that creates a new resource.
- */
-export type ResourceFactory<T extends Resource> = () => Promise<T>;
-
-/**
- * Resource closer is a function that receives a current resource and closes it.
- */
-export type ResourceCloser<T extends Resource> = (res: T) => Promise<void>;
-
-/**
  * Handler options
  */
 export interface Options<T extends Resource> {
@@ -62,6 +56,12 @@ export interface Options<T extends Resource> {
      * Resource name
      */
     name?: string;
+
+    /**
+     * Automatically connect when resource is requested.
+     * @default false
+     */
+    autoConnect?: boolean;
 
     /**
      * Function that is responsbile for resource closure.
@@ -83,30 +83,32 @@ export interface Options<T extends Resource> {
  * @param factory - Resource factory.
  * @param opts - Options.
  */
-export class ResourceHandler<T extends Resource> implements Observable<Event | AnyEvent>, Closable {
+export class ResourceHandler<T extends Resource> implements Observable<Event | AnyEvent> {
     private readonly __factory: ResourceFactory<T>;
     private readonly __subscriptions: Subscription[];
-    private readonly __emitter: events.EventEmitter;
-    private __resource: Promise<T | null>;
+    private readonly __emitter: events.EventEmitter & { emit(eventName: Event, ...args: any[]): boolean };
+    private __resource?: T;
     private __err?: Error;
     private __status: Status;
     private __opts: Options<T>;
+    private __lock: Lock;
 
     constructor(factory: ResourceFactory<T>, opts?: Options<T>) {
         const onFailedAttempt = opts?.retry?.onFailedAttempt;
 
         this.__opts = {
             name: opts?.name || 'Resource',
+            autoConnect: typeof opts?.autoConnect === 'boolean' ? opts?.autoConnect : false,
             closer: opts?.closer,
             events: opts?.events,
             retry: {
-                retries: opts?.retry?.retries || 10,
-                minTimeout: opts?.retry?.minTimeout || 5000,
-                maxTimeout: opts?.retry?.maxTimeout || Infinity,
-                factor: opts?.retry?.factor || 2,
-                randomize: opts?.retry?.randomize || false,
+                retries: typeof opts?.retry?.retries === 'number' ? opts?.retry?.retries : 10,
+                minTimeout: typeof opts?.retry?.minTimeout === 'number' ? opts?.retry?.minTimeout : 5000,
+                maxTimeout: typeof opts?.retry?.maxTimeout === 'number' ? opts?.retry?.maxTimeout : Infinity,
+                factor: typeof opts?.retry?.factor === 'number' ? opts?.retry?.factor : 2,
+                randomize: typeof opts?.retry?.randomize === 'boolean' ? opts?.retry?.randomize : false,
                 onFailedAttempt: async (err: FailedAttemptError) => {
-                    this.__emitter.emit('retry', err);
+                    this.__onRetry(err);
 
                     if (typeof onFailedAttempt === 'function') {
                         return onFailedAttempt(err);
@@ -115,11 +117,15 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
             },
         };
         this.__factory = factory;
-        this.__status = 'connecting';
-        this.__resource = undefined as any; // TS hack. We set in __connect
+        this.__status = 'closed';
+        this.__resource = undefined;
         this.__subscriptions = [];
+        this.__lock = new Lock();
         this.__emitter = new events.EventEmitter();
-        this.__connect(true);
+        // Supress Node failure
+        // TODO: Make as an option?
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        this.__emitter.on('error', () => {});
     }
 
     /**
@@ -147,52 +153,82 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
      * Returns the resource value
      */
     public async resource(): Promise<T> {
-        const res = await this.__resource;
+        const release = await this.__lock.acquire();
 
-        if (!res) {
-            return Promise.reject(new Error(`${this.__opts} is not available`));
+        try {
+            if (isOpen(this)) {
+                const res = this.__resource;
+
+                if (res != null) {
+                    return res;
+                }
+
+                return Promise.reject(new ResourceUnavailableError(this.name));
+            }
+
+            if (isClosed(this)) {
+                return Promise.reject(new ResourceClosedError(this.name));
+            }
+        } catch (e) {
+        } finally {
+            release();
         }
 
-        return res;
+        return Promise.reject(new ResourceUnavailableError(this.name));
     }
 
     /**
      * Creates a new resource value, if it does not exist
      */
-    public async connect(): Promise<void> {
-        this.__connect();
+    public async open(): Promise<ResourceHandler<T>> {
+        const release = await this.__lock.acquire();
 
-        await this.__resource;
+        await this.__open().then(release);
+
+        return this;
+    }
+
+    /**
+     * Creates a new resource value, if it does not exist
+     * @deprecated Use .open()
+     */
+    public connect(): Promise<ResourceHandler<T>> {
+        return this.open();
     }
 
     /**
      * Closes / destroys the resource value, if it exists
      */
-    public async close(): Promise<void> {
-        if (this.__status === 'closed') {
-            return Promise.reject(new Error(`${this.__opts.name} is closed`));
-        }
+    public async close(): Promise<ResourceHandler<T>> {
+        const release = await this.__lock.acquire();
 
-        if (this.__status === 'connecting') {
+        try {
+            if (isClosed(this)) {
+                return Promise.reject(new ResourceClosedError(this.name));
+            }
+
+            if (isErrored(this)) {
+                return Promise.reject(new ResourceUnavailableError(this.name));
+            }
+
             this.__setStatus('closing');
 
-            return Promise.resolve();
+            const res = this.__resource;
+
+            if (res != null) {
+                await this.__closeResource(res);
+            }
+
+            this.__onClose();
+        } catch (err) {
+        } finally {
+            release();
         }
 
-        this.__setStatus('closed');
-
-        const res = await this.__resource;
-
-        if (res == null) {
-            return Promise.resolve();
-        }
-
-        this.__unsubscribeFromResource();
-
-        return this.__closeResource(res);
+        return this;
     }
 
-    public subscribe(event: string, subscriber: Subscriber): Subscription {
+    public subscribe(event: Event, subscriber: Subscriber): Subscription {
         this.__emitter.on(event, subscriber);
 
         return () => {
@@ -200,28 +236,65 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
         };
     }
 
+    public async __open(): Promise<boolean> {
+        try {
+            // already open
+            if (isOpen(this)) {
+                return true;
+            }
+
+            this.__setStatus('opening');
+            this.__err = undefined;
+            this.__resource = undefined;
+
+            const res = await retry(() => {
+                if (isAborted(this)) {
+                    return Promise.reject(new AbortError(new OpenAbortedError(this.name)));
+                }
+
+                return this.__factory();
+            }, this.__opts.retry);
+
+            // what if the operation has been terminated while we were openning the resource
+            if (isAborted(this)) {
+                this.__onAbort();
+
+                return false;
+            }
+
+            this.__onOpen(res);
+        } catch (err) {
+            // all retries failed, cannot open
+            this.__onError(err as Error, true);
+
+            return false;
+        }
+
+        return true;
+    }
+
     private __subscribeToResource(res: T): void {
         this.__subscriptions.push(
+            // the underlying resource failed
+            // we will try to restore it, thus we just inform a user about this failure
             subscribe(res, 'error', (err) => {
-                this.__unsubscribeFromResource();
-                this.__err = err;
-                this.__setStatus('error');
+                this.__onError(err, false);
 
-                // close resource if needed
+                // close the failed resource
                 this.__closeResource(res).finally(() => {
-                    this.__connect();
-
-                    // the underlying resource failed
-                    // we will try to restore it, thus we just inform a user about this failure
-                    this.__emitter.emit('failure', err);
+                    // and recreate it again
+                    this.open();
                 });
             }),
         );
 
         this.__subscriptions.push(
             subscribe(res, 'close', () => {
-                this.__unsubscribeFromResource();
-                this.__setToClose();
+                // if it's not triggered by us, then re-open
+                // the underlying resource must be closed by ResourceHandler only
+                if (!isAborted(this)) {
+                    this.open();
+                }
             }),
         );
 
@@ -232,7 +305,7 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
 
                 this.__subscriptions.push(
                     subscribe(res, from, (...args) => {
-                        this.__emitter.emit(to, ...args);
+                        this.__emit(to, ...args);
                     }),
                 );
             });
@@ -240,81 +313,79 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
     }
 
     private __unsubscribeFromResource(): void {
-        this.__subscriptions.forEach((i) => i());
+        this.__subscriptions.forEach((i) => {
+            try {
+                i();
+            } finally {
+            }
+        });
         this.__subscriptions.length = 0;
     }
 
-    private __connect(force = false): void {
-        if (!force) {
-            if (
-                this.__status === 'connecting' ||
-                this.__status === 'connected' ||
-                this.__status === 'closing' ||
-                this.__status === 'closed'
-            ) {
-                return;
-            }
-        }
+    private __onOpen(res: T): void {
+        this.__resource = res;
+        this.__subscribeToResource(res);
+        this.__setStatus('open');
 
-        this.__setStatus('connecting');
-        this.__err = undefined;
-        this.__resource = retry(() => {
-            if (this.__status === 'closing') {
-                this.__setToClose();
-
-                throw new AbortError(`Connection is aborted`);
-            }
-
-            return this.__factory();
-        }, this.__opts.retry)
-            .then((res: T) => {
-                if (this.__status === 'closing') {
-                    this.__setToClose();
-
-                    return Promise.reject(new Error(`${this.__opts.name} is closed`));
-                }
-
-                this.__subscribeToResource(res);
-                this.__setStatus('connected');
-
-                this.__emitter.emit('open', res);
-
-                return res;
-            })
-            .catch((err) => {
-                this.__err = err;
-                this.__setStatus('error');
-
-                // failed to restore the resource
-                // nothing we can do rather than notify about it
-                this.__emitter.emit('error', err);
-
-                return Promise.resolve(null);
-            });
+        this.__emit('open', res);
     }
 
-    private __setToClose(): void {
-        this.__resource = Promise.reject(new Error(`${this.__opts.name} is closed`));
+    private __onRetry(reason: Error): void {
+        this.__emit('retry', reason);
+    }
+
+    private __onError(reason: Error, fatal: boolean): void {
+        this.__unsubscribeFromResource();
+
+        this.__resource = undefined;
+        this.__err = reason;
+        this.__setStatus('error');
+
+        if (fatal) {
+            // failed to restore the resource
+            // nothing we can do rather than notify about it
+            this.__emit('error', reason);
+        } else {
+            this.__emit('failure', reason);
+        }
+    }
+
+    private __onAbort(): void {
+        this.__onClose();
+    }
+
+    private __onClose(): void {
+        this.__unsubscribeFromResource();
+
+        this.__resource = undefined;
         this.__err = undefined;
         this.__setStatus('closed');
 
-        this.__emitter.emit('close');
-        this.__emitter.removeAllListeners();
+        this.__emit('close');
     }
 
     private __setStatus(nextStatus: Status): void {
+        const prevStatus = this.__status;
         this.__status = nextStatus;
 
+        this.__emit('status', nextStatus, prevStatus);
+    }
+
+    private __emit(event: any, arg1?: any, arg2?: any): void {
         process.nextTick(() => {
-            this.__emitter.emit('status', nextStatus);
+            this.__emitter.emit(event, arg1, arg2);
         });
     }
 
-    private __closeResource(res: T): Promise<void> {
-        if (typeof this.__opts.closer === 'function') {
-            return this.__opts.closer(res);
+    private async __closeResource(res: T): Promise<void> {
+        try {
+            if (typeof this.__opts.closer === 'function') {
+                await Promise.resolve(this.__opts.closer(res));
+            } else {
+                await res.close();
+            }
+        } catch (e) {
+            this.__emit('error', new CloseError(this.name, e as Error));
         }
-
-        return res.close();
     }
 }
