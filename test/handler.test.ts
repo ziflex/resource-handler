@@ -3,16 +3,7 @@ import { EventEmitter } from 'events';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import sinon from 'sinon';
-import {
-    Status,
-    ObservableResource,
-    Subscriber,
-    Subscription,
-    EmitterResource,
-    ResourceClosedError,
-    open,
-    create,
-} from '../src';
+import { Status, ObservableResource, Subscriber, Subscription, EmitterResource, open, create } from '../src';
 
 chai.use(chaiAsPromised);
 
@@ -664,7 +655,7 @@ describe('Resource handler', () => {
 
                 const original = rh.close();
 
-                await expect(rh.close()).to.be.rejectedWith(ResourceClosedError);
+                await expect(rh.close()).to.eventually.eq(false);
 
                 await original;
 
@@ -688,7 +679,7 @@ describe('Resource handler', () => {
 
                 await expect(rh.resource()).to.be.fulfilled;
                 await expect(rh.close()).to.be.fulfilled;
-                await expect(rh.close()).to.be.rejectedWith(ResourceClosedError);
+                await expect(rh.close()).to.eventually.eq(false);
 
                 expect(onClose.callCount, 'onClose.callCount').to.eq(1);
             });
@@ -710,7 +701,7 @@ describe('Resource handler', () => {
 
                 await expect(rh.resource()).to.be.fulfilled;
                 await expect(rh.close()).to.be.fulfilled;
-                await expect(rh.close()).to.be.rejectedWith(ResourceClosedError);
+                await expect(rh.close()).to.eventually.eq(false);
 
                 expect(onClose.callCount, 'onClose.callCount').to.eq(1);
             });
@@ -719,42 +710,21 @@ describe('Resource handler', () => {
 
     describe('.resource', () => {
         context('when closed', () => {
-            context('when "autoconnect" is false', () => {
-                it('should reject a promise', async () => {
-                    const rh = await open(async () => {
-                        const mock = new EmitterResourceMock();
+            it('should reject a promise', async () => {
+                const rh = await open(async () => {
+                    const mock = new EmitterResourceMock();
 
-                        await mock.open();
+                    await mock.open();
 
-                        return mock;
-                    });
-
-                    await expect(rh.resource(), 'resolve resource').to.be.fulfilled;
-
-                    expect(rh.status).to.eq('open');
-
-                    await expect(rh.close(), 'close resource').to.be.fulfilled;
-                    await expect(rh.resource(), 'resolve resource').to.been.rejected;
+                    return mock;
                 });
-            });
 
-            context('when "autoconnect" is true', () => {
-                xit('should reconnect and resolve a promise', async () => {
-                    const rh = await open(async () => {
-                        const mock = new EmitterResourceMock();
+                await expect(rh.resource(), 'resolve resource').to.be.fulfilled;
 
-                        await mock.open();
+                expect(rh.status).to.eq('open');
 
-                        return mock;
-                    });
-
-                    await expect(rh.resource(), 'resolve resource').to.be.fulfilled;
-
-                    expect(rh.status).to.eq('open');
-
-                    await expect(rh.close(), 'close resource').to.be.fulfilled;
-                    await expect(rh.resource(), 'resolve resource').to.been.fulfilled;
-                });
+                await expect(rh.close(), 'close resource').to.be.fulfilled;
+                await expect(rh.resource(), 'resolve resource').to.been.rejected;
             });
         });
     });

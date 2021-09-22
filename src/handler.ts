@@ -179,36 +179,32 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
 
     /**
      * Creates a new resource value, if it does not exist
+     * @returns 'true' if the operation succeeded, otherwise 'false'.
      */
-    public async open(): Promise<ResourceHandler<T>> {
+    public async open(): Promise<boolean> {
         const release = await this.__lock.acquire();
 
-        await this.__open().then(release);
+        const out = await this.__open();
 
-        return this;
-    }
+        release();
 
-    /**
-     * Creates a new resource value, if it does not exist
-     * @deprecated Use .open()
-     */
-    public connect(): Promise<ResourceHandler<T>> {
-        return this.open();
+        return out;
     }
 
     /**
      * Closes / destroys the resource value, if it exists
+     * @returns 'true' if the operation succeeded, otherwise 'false'.
      */
-    public async close(): Promise<ResourceHandler<T>> {
+    public async close(): Promise<boolean> {
         const release = await this.__lock.acquire();
 
         try {
             if (isClosed(this)) {
-                return Promise.reject(new ResourceClosedError(this.name));
+                return false;
             }
 
             if (isErrored(this)) {
-                return Promise.reject(new ResourceUnavailableError(this.name));
+                return false;
             }
 
             this.__setStatus('closing');
@@ -225,7 +221,7 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
             release();
         }
 
-        return this;
+        return true;
     }
 
     public subscribe(event: Event, subscriber: Subscriber): Subscription {
@@ -236,7 +232,7 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
         };
     }
 
-    public async __open(): Promise<boolean> {
+    private async __open(): Promise<boolean> {
         try {
             // already open
             if (isOpen(this)) {

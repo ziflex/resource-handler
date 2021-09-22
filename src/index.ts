@@ -12,5 +12,7 @@ export function create<T extends Resource>(factory: ResourceFactory<T>, opts?: O
 }
 
 export function open<T extends Resource>(factory: ResourceFactory<T>, opts?: Options<T>): Promise<ResourceHandler<T>> {
-    return create(factory, opts).open();
+    const rh = create(factory, opts);
+
+    return rh.open().then(() => rh);
 }
