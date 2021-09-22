@@ -28,6 +28,16 @@ export interface EmitterResource<E = AnyEvent> extends Emitter<E>, Closable {}
  */
 export type Resource<E = AnyEvent> = ObservableResource<E> | EmitterResource<E>;
 
+/**
+ * Resource closer is a function that creates a new resource.
+ */
+export type ResourceFactory<T extends Resource> = () => Promise<T>;
+
+/**
+ * Resource closer is a function that receives a current resource and closes it.
+ */
+export type ResourceCloser<T extends Resource> = (res: T) => Promise<void>;
+
 function closer<T>(this: T, fn: CloseFn<T>): Promise<void> {
     try {
         return Promise.resolve(fn(this));
