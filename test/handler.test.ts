@@ -1,3 +1,4 @@
+/* eslint-disable import/no-named-as-default-member */
 import { EventEmitter } from 'events';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
@@ -9,7 +10,7 @@ import {
     Subscription,
     EmitterResource,
     ResourceClosedError,
-    createAndConnect,
+    open,
     create,
 } from '../src';
 
@@ -22,7 +23,7 @@ function sleep(time: number): Promise<void> {
 }
 
 interface Timings {
-    connect: number;
+    open: number;
     close: number;
     error: number;
 }
@@ -36,7 +37,7 @@ class ObservableResourceMock implements ObservableResource {
         this.__emitter = new EventEmitter();
         this.__status = 'closed';
         this.__timings = {
-            connect: timings?.connect || 250,
+            open: timings?.open || 250,
             close: timings?.close || 100,
             error: timings?.error || 50,
         };
@@ -66,16 +67,16 @@ class ObservableResourceMock implements ObservableResource {
         });
     }
 
-    public connect(delay: number = this.__timings.connect): Promise<void> {
-        this.__status = 'connecting';
+    public open(delay: number = this.__timings.open): Promise<void> {
+        this.__status = 'opening';
 
         return new Promise<void>((resolve) => {
             setTimeout(() => {
-                this.__status = 'connected';
+                this.__status = 'open';
 
                 resolve();
 
-                this.__emitter.emit('connect');
+                this.__emitter.emit('open');
             }, delay);
         });
     }
@@ -103,7 +104,7 @@ class EmitterResourceMock extends EventEmitter implements EmitterResource {
         super();
         this.__status = 'closed';
         this.__timings = {
-            connect: timings?.connect || 250,
+            open: timings?.open || 250,
             close: timings?.close || 100,
             error: timings?.error || 50,
         };
@@ -125,16 +126,16 @@ class EmitterResourceMock extends EventEmitter implements EmitterResource {
         });
     }
 
-    public connect(delay = this.__timings.connect): Promise<void> {
-        this.__status = 'connecting';
+    public open(delay = this.__timings.open): Promise<void> {
+        this.__status = 'opening';
 
         return new Promise<void>((resolve) => {
             setTimeout(() => {
-                this.__status = 'connected';
+                this.__status = 'open';
 
                 resolve();
 
-                this.emit('connect');
+                this.emit('open');
             }, delay);
         });
     }
@@ -157,23 +158,23 @@ class EmitterResourceMock extends EventEmitter implements EmitterResource {
 describe('Resource handler', () => {
     describe('Observable', () => {
         it('should automatically connect', async () => {
-            const rh = await createAndConnect(async () => {
+            const rh = await open(async () => {
                 const mock = new ObservableResourceMock();
 
-                await mock.connect();
+                await mock.open();
 
                 return mock;
             });
 
             const r = await rh.resource();
 
-            expect(r.status()).to.eq('connected');
+            expect(r.status()).to.eq('open');
         });
 
         it('should automatically recover from disconnect', async () => {
-            const rh = await createAndConnect(async () => {
+            const rh = await open(async () => {
                 const mock = new ObservableResourceMock();
-                await mock.connect();
+                await mock.open();
 
                 return mock;
             });
@@ -194,15 +195,15 @@ describe('Resource handler', () => {
 
             await sleep(500);
 
-            expect(r2.status()).to.eq('connected');
+            expect(r2.status()).to.eq('open');
         });
 
         it('should allow to use custom closer', async () => {
             const spy = sinon.spy();
-            const rh = await createAndConnect(
+            const rh = await open(
                 async () => {
                     const mock = new ObservableResourceMock();
-                    await mock.connect();
+                    await mock.open();
 
                     return mock;
                 },
@@ -216,7 +217,7 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            expect(r.status()).to.eq('connected');
+            expect(r.status()).to.eq('open');
 
             await rh.close();
 
@@ -227,23 +228,23 @@ describe('Resource handler', () => {
 
     describe('Emitter', () => {
         it('should automatically connect', async () => {
-            const rh = await createAndConnect(async () => {
+            const rh = await open(async () => {
                 const mock = new EmitterResourceMock();
 
-                await mock.connect();
+                await mock.open();
 
                 return mock;
             });
 
             const r = await rh.resource();
 
-            expect(r.status()).to.eq('connected');
+            expect(r.status()).to.eq('open');
         });
 
         it('should automatically recover from disconnect', async () => {
-            const rh = await createAndConnect(async () => {
+            const rh = await open(async () => {
                 const mock = new EmitterResourceMock();
-                await mock.connect();
+                await mock.open();
 
                 return mock;
             });
@@ -262,15 +263,15 @@ describe('Resource handler', () => {
 
             const r2 = await rh.resource();
 
-            expect(r2.status()).to.eq('connected');
+            expect(r2.status()).to.eq('open');
         });
 
         it('should allow to use custom closer', async () => {
             const spy = sinon.spy();
-            const rh = await createAndConnect(
+            const rh = await open(
                 async () => {
                     const mock = new EmitterResourceMock();
-                    await mock.connect();
+                    await mock.open();
 
                     return mock;
                 },
@@ -284,7 +285,7 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            expect(r.status()).to.eq('connected');
+            expect(r.status()).to.eq('open');
 
             await rh.close();
 
@@ -296,9 +297,9 @@ describe('Resource handler', () => {
     describe('events', () => {
         describe('Observable', () => {
             it('should pass an error object on "failure"', async () => {
-                const rh = await createAndConnect(async () => {
+                const rh = await open(async () => {
                     const mock = new ObservableResourceMock();
-                    await mock.connect();
+                    await mock.open();
 
                     return mock;
                 });
@@ -321,9 +322,9 @@ describe('Resource handler', () => {
             });
 
             it('should pass a new resource on "open"', async () => {
-                const rh = await createAndConnect(async () => {
+                const rh = await open(async () => {
                     const mock = new ObservableResourceMock();
-                    await mock.connect();
+                    await mock.open();
 
                     return mock;
                 });
@@ -342,7 +343,7 @@ describe('Resource handler', () => {
                     });
                 });
 
-                await rh.connect();
+                await rh.open();
 
                 expect(promise).to.be.fulfilled;
             });
@@ -350,9 +351,9 @@ describe('Resource handler', () => {
 
         describe('Emitter', () => {
             it('should pass an error object on "failure"', async () => {
-                const rh = await createAndConnect(async () => {
+                const rh = await open(async () => {
                     const mock = new EmitterResourceMock();
-                    await mock.connect();
+                    await mock.open();
 
                     return mock;
                 });
@@ -375,9 +376,9 @@ describe('Resource handler', () => {
             });
 
             it('should pass a new resource on "open"', async () => {
-                const rh = await createAndConnect(async () => {
+                const rh = await open(async () => {
                     const mock = new EmitterResourceMock();
-                    await mock.connect();
+                    await mock.open();
 
                     return mock;
                 });
@@ -395,7 +396,7 @@ describe('Resource handler', () => {
                     });
                 });
 
-                await rh.connect();
+                await rh.open();
 
                 expect(promise).to.be.fulfilled;
             });
@@ -407,7 +408,7 @@ describe('Resource handler', () => {
             const spy = sinon.spy();
 
             try {
-                const rh = await createAndConnect(() => Promise.reject(new Error()), {
+                const rh = await open(() => Promise.reject(new Error()), {
                     retry: {
                         onFailedAttempt: spy,
                         retries: 2,
@@ -429,7 +430,7 @@ describe('Resource handler', () => {
         it('should abort if a given callback throws an error', async () => {
             const errors = [new Error('1'), new Error('2'), new Error('3'), new Error('4'), new Error('5')];
             const spy = sinon.spy();
-            const promise = createAndConnect(
+            const promise = open(
                 async () => {
                     const err = errors.shift();
 
@@ -463,42 +464,182 @@ describe('Resource handler', () => {
         }).timeout(20000);
     });
 
-    describe('.close', () => {
-        context('when status is "connected"', () => {
-            it('should set status of handler to "closed" and close underlying resource', async () => {
-                const rh = await createAndConnect(async () => {
+    describe('.open', () => {
+        context('when status is "open"', () => {
+            it('should ignore the operation', async () => {
+                const rh = create(async () => {
                     const mock = new EmitterResourceMock();
 
-                    await mock.connect();
+                    await mock.open();
+
+                    return mock;
+                });
+
+                await rh.open();
+
+                await expect(rh.resource()).to.be.fulfilled;
+
+                expect(rh.status).to.eq('open');
+
+                await expect(rh.open()).to.be.fulfilled;
+
+                await rh.close();
+            });
+        });
+
+        context('when status is "opening"', () => {
+            it('should wait and resolve a promise when a ResourceHandler gets into a finite state', async () => {
+                const onOpening = sinon.spy();
+                const stub = sinon.stub().callsFake(async () => {
+                    const mock = new EmitterResourceMock();
+
+                    await mock.open(1000);
+
+                    return mock;
+                });
+                const rh = create(stub);
+                rh.subscribe('status', (status: Status) => {
+                    if (status === 'opening') {
+                        onOpening();
+                    }
+                });
+
+                const original = rh.open();
+                const follower1 = rh.open();
+                const follower2 = rh.open();
+                const follower3 = rh.open();
+
+                await expect(Promise.all([original, follower1, follower2, follower3])).to.be.fulfilled;
+                expect(stub.callCount).to.equal(1);
+                expect(onOpening.callCount).to.equal(1);
+            });
+        });
+
+        context('when status is "closing"', () => {
+            it('should wait for ending of the current operation and open a new Resource', async () => {
+                const onClosing = sinon.spy();
+                const stub = sinon.stub().callsFake(async () => {
+                    const mock = new EmitterResourceMock({
+                        close: 1000,
+                    });
+
+                    await mock.open(100);
+
+                    return mock;
+                });
+                const rh = create(stub);
+
+                rh.subscribe('status', (status: Status) => {
+                    if (status === 'closing') {
+                        onClosing();
+                    }
+                });
+
+                await rh.open();
+
+                const closer = rh.close();
+                const opener1 = rh.open();
+                const opener2 = rh.open();
+                const opener3 = rh.open();
+
+                await expect(Promise.all([closer, opener1, opener2, opener3])).to.be.fulfilled;
+                expect(stub.callCount).to.eq(2);
+                expect(onClosing.callCount).to.eq(1);
+                expect(rh.status).to.eql('open');
+            });
+        });
+
+        context('when status is "closed"', () => {
+            it('should open a new Resource', async () => {
+                const rh = await open(async () => {
+                    const mock = new EmitterResourceMock({
+                        error: 250,
+                    });
+
+                    await mock.open(100);
+
+                    return mock;
+                });
+
+                await expect(rh.resource()).to.be.fulfilled;
+                await expect(rh.close()).to.be.fulfilled;
+
+                expect(rh.status).to.eql('closed');
+
+                await expect(rh.open()).to.be.fulfilled;
+
+                expect(rh.status).to.eql('open');
+            });
+        });
+
+        context('when status is "error"', () => {
+            it('should try to re-open a Resource', async () => {
+                let fail = true;
+                const rh = create(
+                    async () => {
+                        if (fail) {
+                            throw new Error('Voices are telling me "NO".');
+                        }
+
+                        const mock = new EmitterResourceMock({
+                            error: 250,
+                        });
+
+                        await mock.open(100);
+
+                        return mock;
+                    },
+                    {
+                        retry: {
+                            retries: 0,
+                        },
+                    },
+                );
+
+                await expect(rh.open()).to.fulfilled;
+                expect(rh.status).to.eq('error');
+
+                fail = false;
+                await expect(rh.open()).to.be.fulfilled;
+                await expect(rh.resource()).to.be.fulfilled;
+            });
+        });
+    });
+
+    describe('.close', () => {
+        context('when status is "open"', () => {
+            it('should set status of handler to "closed" and close underlying resource', async () => {
+                const rh = await open(async () => {
+                    const mock = new EmitterResourceMock();
+
+                    await mock.open();
 
                     return mock;
                 });
 
                 await expect(rh.resource()).to.be.fulfilled;
 
-                expect(rh.status).to.eq('connected');
+                expect(rh.status).to.eq('open');
 
                 await expect(rh.close()).to.be.fulfilled;
                 await expect(rh.resource()).to.been.rejected;
             });
         });
 
-        context('when status is "connecting"', () => {
-            it('should set status of handler to "closing" and close underlying resource when it gets connected', async () => {
-                const rh = await create(async () => {
+        context('when status is "opening"', () => {
+            it('should set status of handler to "closing" and close underlying resource when it gets open', async () => {
+                const rh = create(async () => {
                     const mock = new EmitterResourceMock();
 
-                    await mock.connect(1000);
+                    await mock.open(1000);
 
                     return mock;
                 });
 
-                const onConnected = rh.connect();
+                rh.open();
 
-                expect(rh.status).to.eq('connecting');
                 await expect(rh.close()).to.be.fulfilled;
-
-                await onConnected;
+                expect(rh.status).to.eq('closed');
 
                 await expect(rh.resource()).to.been.rejected;
             });
@@ -506,12 +647,13 @@ describe('Resource handler', () => {
 
         context('when status is "closing"', () => {
             it('should ignore the requested operation and return a promise', async () => {
-                const rh = await createAndConnect(async () => {
+                const rh = await open(async () => {
                     const mock = new EmitterResourceMock({
                         error: 250,
+                        close: 500,
                     });
 
-                    await mock.connect(100);
+                    await mock.open(100);
 
                     return mock;
                 });
@@ -520,20 +662,24 @@ describe('Resource handler', () => {
 
                 await expect(rh.resource()).to.be.fulfilled;
 
-                await expect(Promise.all([rh.close(), rh.close()])).to.be.fulfilled;
+                const original = rh.close();
+
+                await expect(rh.close()).to.be.rejectedWith(ResourceClosedError);
+
+                await original;
 
                 expect(onClose.callCount, 'onClose.callCount').to.eq(1);
             });
         });
 
         context('when status is "closed"', () => {
-            it('should ignore the requested operation and return a rejected promise', async () => {
-                const rh = await createAndConnect(async () => {
+            it('should ignore the requested operation and return a promise', async () => {
+                const rh = await open(async () => {
                     const mock = new EmitterResourceMock({
                         error: 250,
                     });
 
-                    await mock.connect(100);
+                    await mock.open(100);
 
                     return mock;
                 });
@@ -550,12 +696,12 @@ describe('Resource handler', () => {
 
         context('when status is "error"', () => {
             it('should ignore the requested operation and return a rejected promise', async () => {
-                const rh = await createAndConnect(async () => {
+                const rh = await open(async () => {
                     const mock = new EmitterResourceMock({
                         error: 250,
                     });
 
-                    await mock.connect(100);
+                    await mock.open(100);
 
                     return mock;
                 });
@@ -573,21 +719,42 @@ describe('Resource handler', () => {
 
     describe('.resource', () => {
         context('when closed', () => {
-            it('should reject a promise', async () => {
-                const rh = await createAndConnect(async () => {
-                    const mock = new EmitterResourceMock();
+            context('when "autoconnect" is false', () => {
+                it('should reject a promise', async () => {
+                    const rh = await open(async () => {
+                        const mock = new EmitterResourceMock();
 
-                    await mock.connect();
+                        await mock.open();
 
-                    return mock;
+                        return mock;
+                    });
+
+                    await expect(rh.resource(), 'resolve resource').to.be.fulfilled;
+
+                    expect(rh.status).to.eq('open');
+
+                    await expect(rh.close(), 'close resource').to.be.fulfilled;
+                    await expect(rh.resource(), 'resolve resource').to.been.rejected;
                 });
+            });
 
-                await expect(rh.resource(), 'resolve resource').to.be.fulfilled;
+            context('when "autoconnect" is true', () => {
+                xit('should reconnect and resolve a promise', async () => {
+                    const rh = await open(async () => {
+                        const mock = new EmitterResourceMock();
 
-                expect(rh.status).to.eq('connected');
+                        await mock.open();
 
-                await expect(rh.close(), 'close resource').to.be.fulfilled;
-                await expect(rh.resource(), 'resolve resource').to.been.rejected;
+                        return mock;
+                    });
+
+                    await expect(rh.resource(), 'resolve resource').to.be.fulfilled;
+
+                    expect(rh.status).to.eq('open');
+
+                    await expect(rh.close(), 'close resource').to.be.fulfilled;
+                    await expect(rh.resource(), 'resolve resource').to.been.fulfilled;
+                });
             });
         });
     });

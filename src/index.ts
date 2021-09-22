@@ -11,9 +11,6 @@ export function create<T extends Resource>(factory: ResourceFactory<T>, opts?: O
     return new ResourceHandler(factory, opts);
 }
 
-export function createAndConnect<T extends Resource>(
-    factory: ResourceFactory<T>,
-    opts?: Options<T>,
-): Promise<ResourceHandler<T>> {
-    return create(factory, opts).connect();
+export function open<T extends Resource>(factory: ResourceFactory<T>, opts?: Options<T>): Promise<ResourceHandler<T>> {
+    return create(factory, opts).open();
 }

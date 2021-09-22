@@ -23,9 +23,26 @@ You can find API [here](https://ziflex.github.io/resource-handler).
 
 ```typescript
 import * as amqp from 'amqplib';
-import { ResourceHandler } from 'resource-handler';
+import { create } from 'resource-handler';
 
-const rh = new ResourceHandler(async () => {
+const rh = create(async () => {
+    return amqp.connect(opts);
+});
+
+await rh.open();
+
+const connection = await rh.resource();
+
+await rh.close();
+```
+
+With automatic opening:
+
+```typescript
+import * as amqp from 'amqplib';
+import { open } from 'resource-handler';
+
+const rh = await open(async () => {
     return amqp.connect(opts);
 });
 
@@ -40,9 +57,9 @@ By default, `resource-handler` uses default values for restoring a given resouce
 
 ```typescript
 import * as amqp from 'amqplib';
-import { ResourceHandler } from 'resource-handler';
+import { create } from 'resource-handler';
 
-const rh = new ResourceHandler(
+const rh = create(
     async () => {
         return amqp.connect(opts);
     },
@@ -57,6 +74,8 @@ const rh = new ResourceHandler(
     },
 );
 
+await rh.open();
+
 const connection = await rh.resource();
 
 await rh.close();
@@ -67,9 +86,9 @@ await rh.close();
 In case your resource has other than `.close` method for closing its operation, you can provide a custom closer function:
 
 ```typescript
-import { ResourceHandler } from 'resource-handler';
+import { create } from 'resource-handler';
 
-const rh = new ResourceHandler(
+const rh = create(
     async () => {
         return connect();
     },
@@ -77,6 +96,8 @@ const rh = new ResourceHandler(
         closer: (resource) => resource.destroy(),
     },
 );
+
+await rh.open();
 
 const connection = await rh.resource();
 
@@ -86,9 +107,9 @@ await rh.close();
 ### Events proxying
 
 ```typescript
-import { ResourceHandler } from 'resource-handler';
+import { create } from 'resource-handler';
 
-const rh = new ResourceHandler(
+const rh = create(
     async () => {
         return connect();
     },
@@ -96,6 +117,8 @@ const rh = new ResourceHandler(
         events: ['foo'],
     },
 );
+
+await rh.open();
 
 rh.on('foo', () => console.log('bar'));
 
@@ -109,9 +132,9 @@ await rh.close();
 ### Abrupt retries
 
 ```typescript
-import { ResourceHandler } from 'resource-handler';
+import { create } from 'resource-handler';
 
-const rh = new ResourceHandler(
+const rh = create(
     async () => {
         return connect();
     },
@@ -126,5 +149,13 @@ const rh = new ResourceHandler(
     },
 );
 
-await rh.resource();
+try {
+    await rh.open();
+    const res = await rh.resource();
+
+    console.log("Successfuly open a resource");
+} catch (e) {
+    console.log("Failed to open a resource", e);
+}
+
 ```

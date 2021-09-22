@@ -22,14 +22,14 @@ export class ResourceClosedError extends ResourceError {
     }
 }
 
-export class ConnectionAbortError extends ResourceError {
+export class OpenAbortedError extends ResourceError {
     constructor(resource: string) {
         const name = ResourceError.toResourceName(resource);
-        super(name, `${name} connection is aborted`);
+        super(name, `${name} opening is aborted`);
     }
 }
 
-export class TerminationError extends ResourceError {
+export class CloseError extends ResourceError {
     constructor(resource: string, cause: Error) {
         const name = ResourceError.toResourceName(resource);
         super(name, `Failed to close ${name.toLocaleLowerCase()}`, cause);

@@ -1,28 +1,37 @@
 /**
  * Handler life cycle statuses.
+ * "opening" - Resource is being created and not available yet.
+ * "open" - Resource is created and available for use.
+ * "closing" - Resource is being closed and not available anymore.
+ * "closed" - Resource is closed and not avasilable anymore.
+ * "error" - Resource creation is failed.
  */
-export type Status = 'connecting' | 'connected' | 'error' | 'closing' | 'closed';
+export type Status = 'opening' | 'open' | 'closing' | 'closed' | 'error';
 
-export function isAborted(status: Status): boolean {
-    return status === 'closing' || status === 'closed';
+export interface StatusHolder {
+    status: Status;
 }
 
-export function isTransient(status: Status): boolean {
-    return status === 'closing' || status === 'connecting';
+export function isAborted(holder: StatusHolder): boolean {
+    return holder.status === 'closing' || holder.status === 'closed';
 }
 
-export function isFinal(status: Status): boolean {
-    return status === 'connected' || status === 'closed';
+export function isTransient(holder: StatusHolder): boolean {
+    return holder.status === 'closing' || holder.status === 'opening';
 }
 
-export function isErrored(status: Status): boolean {
-    return status === 'error';
+export function isFinal(holder: StatusHolder): boolean {
+    return holder.status === 'open' || holder.status === 'closed';
 }
 
-export function isReady(status: Status): boolean {
-    return status === 'connected';
+export function isErrored(holder: StatusHolder): boolean {
+    return holder.status === 'error';
 }
 
-export function isClosed(status: Status): boolean {
-    return status === 'closed';
+export function isOpen(holder: StatusHolder): boolean {
+    return holder.status === 'open';
+}
+
+export function isClosed(holder: StatusHolder): boolean {
+    return holder.status === 'closed';
 }
