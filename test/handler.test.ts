@@ -35,10 +35,10 @@ class ObservableResourceMock implements ObservableResource {
     }
 
     public subscribe(event: string, subscriber: Subscriber): Subscription {
-        this.__emitter.on(event, subscriber);
+        this.__emitter?.on(event, subscriber);
 
         return () => {
-            this.__emitter.off(event, subscriber);
+            this.__emitter?.off(event, subscriber);
         };
     }
 
@@ -53,7 +53,7 @@ class ObservableResourceMock implements ObservableResource {
 
                 resolve();
 
-                this.__emitter.emit('error', err);
+                this.__emitter?.emit('error', err);
             }, delay);
         });
     }
@@ -67,7 +67,7 @@ class ObservableResourceMock implements ObservableResource {
 
                 resolve();
 
-                this.__emitter.emit('open');
+                this.__emitter?.emit('open');
             }, delay);
         });
     }
@@ -81,7 +81,7 @@ class ObservableResourceMock implements ObservableResource {
 
                 resolve();
 
-                this.__emitter.emit('close');
+                this.__emitter?.emit('close');
             }, delay);
         });
     }
@@ -159,7 +159,7 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            expect(r.status()).to.eq('open');
+            expect(r?.status()).to.eq('open');
         });
 
         it('should automatically recover from error', async () => {
@@ -179,17 +179,17 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            await r.error(new Error('test'));
+            await r?.error(new Error('test'));
 
             await sleep(100);
 
-            expect(r.status()).to.eq('closed');
+            expect(r?.status()).to.eq('closed');
 
             const r2 = await rh.resource();
 
             await sleep(500);
 
-            expect(r2.status()).to.eq('open');
+            expect(r2?.status()).to.eq('open');
 
             expect(resources).to.have.length(2);
         });
@@ -211,17 +211,17 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            await r.close();
+            await r?.close();
 
             await sleep(100);
 
-            expect(r.status()).to.eq('closed');
+            expect(r?.status()).to.eq('closed');
 
             const r2 = await rh.resource();
 
             await sleep(500);
 
-            expect(r2.status()).to.eq('open');
+            expect(r2?.status()).to.eq('open');
 
             expect(resources).to.have.length(2);
         });
@@ -267,11 +267,11 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            expect(r.status()).to.eq('open');
+            expect(r?.status()).to.eq('open');
 
             await rh.close();
 
-            expect(r.status()).to.eq('closed');
+            expect(r?.status()).to.eq('closed');
             expect(spy.calledOnce).to.be.true;
         });
     });
@@ -288,7 +288,7 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            expect(r.status()).to.eq('open');
+            expect(r?.status()).to.eq('open');
         });
 
         it('should automatically recover from disconnect', async () => {
@@ -305,15 +305,15 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            await r.error(new Error('test'));
+            await r?.error(new Error('test'));
 
             await sleep(100);
 
-            expect(r.status()).to.eq('closed');
+            expect(r?.status()).to.eq('closed');
 
             const r2 = await rh.resource();
 
-            expect(r2.status()).to.eq('open');
+            expect(r2?.status()).to.eq('open');
         });
 
         it('should allow to use custom closer', async () => {
@@ -335,11 +335,11 @@ describe('Resource handler', () => {
 
             const r = await rh.resource();
 
-            expect(r.status()).to.eq('open');
+            expect(r?.status()).to.eq('open');
 
             await rh.close();
 
-            expect(r.status()).to.eq('closed');
+            expect(r?.status()).to.eq('closed');
             expect(spy.calledOnce).to.be.true;
         });
     });
@@ -358,7 +358,7 @@ describe('Resource handler', () => {
                 const promise = new Promise<void>((resolve, reject) => {
                     rh.subscribe('failure', (err: Error) => {
                         try {
-                            expect(err.message).to.eq('test');
+                            expect(err?.message).to.eq('test');
                             resolve();
                         } catch (e) {
                             reject(e);
@@ -366,7 +366,7 @@ describe('Resource handler', () => {
                     });
                 });
 
-                await r1.error(new Error('test'));
+                await r1?.error(new Error('test'));
 
                 return promise;
             });
@@ -412,7 +412,7 @@ describe('Resource handler', () => {
                 const promise = new Promise<void>((resolve, reject) => {
                     rh.subscribe('failure', (err: Error) => {
                         try {
-                            expect(err.message).to.eq('test');
+                            expect(err?.message).to.eq('test');
                             resolve();
                         } catch (e) {
                             reject(e);
@@ -420,7 +420,7 @@ describe('Resource handler', () => {
                     });
                 });
 
-                await r1.error(new Error('test'));
+                await r1?.error(new Error('test'));
 
                 return promise;
             });
@@ -501,7 +501,7 @@ describe('Resource handler', () => {
                         onFailedAttempt(err) {
                             spy(err);
 
-                            if (err.message === '2') {
+                            if (err?.message === '2') {
                                 throw new Error('Test');
                             }
                         },
@@ -672,7 +672,7 @@ describe('Resource handler', () => {
                 expect(rh.status).to.eq('open');
 
                 await expect(rh.close()).to.be.fulfilled;
-                await expect(rh.resource()).to.been.rejected;
+                await expect(rh.resource()).to.eventually.be.null;
             });
         });
 
@@ -691,7 +691,7 @@ describe('Resource handler', () => {
                 await expect(rh.close()).to.be.fulfilled;
                 expect(rh.status).to.eq('closed');
 
-                await expect(rh.resource()).to.been.rejected;
+                await expect(rh.resource()).to.eventually.be.null;
             });
         });
 
@@ -768,8 +768,29 @@ describe('Resource handler', () => {
     });
 
     describe('.resource', () => {
+        context('when open', () => {
+            it('should fullfill a promise with a resource', async () => {
+                let res;
+                const rh = create(async () => {
+                    const mock = new EmitterResourceMock();
+                    res = mock;
+                    await mock.open();
+
+                    return mock;
+                });
+
+                await rh.open();
+
+                await expect(rh.resource(), 'resolve resource').to.eventually.equal(res);
+
+                expect(rh.status).to.eq('open');
+
+                await expect(rh.close(), 'close resource').to.be.fulfilled;
+            });
+        });
+
         context('when closed', () => {
-            it('should reject a promise', async () => {
+            it('should fullfill a promise with null', async () => {
                 const rh = await open(async () => {
                     const mock = new EmitterResourceMock();
 
@@ -783,7 +804,82 @@ describe('Resource handler', () => {
                 expect(rh.status).to.eq('open');
 
                 await expect(rh.close(), 'close resource').to.be.fulfilled;
-                await expect(rh.resource(), 'resolve resource').to.been.rejected;
+                await expect(rh.resource(), 'resolve resource').to.eventually.be.null;
+            });
+
+            context('when a "open" flag passed', () => {
+                it('should fullfill a promise with a resource', async () => {
+                    let res;
+                    const rh = create(async () => {
+                        const mock = new EmitterResourceMock();
+
+                        res = mock;
+                        await mock.open();
+
+                        return mock;
+                    });
+
+                    await rh.open();
+
+                    await expect(rh.resource(), 'resolve resource').to.eventually.equal(res);
+
+                    expect(rh.status).to.eq('open');
+
+                    await expect(rh.close(), 'close resource').to.be.fulfilled;
+                });
+            });
+        });
+
+        context('when errord', () => {
+            it('should fullfill a promise with null', async () => {
+                const rh = await open(
+                    async () => {
+                        throw new Error('Computer says "NO".');
+                    },
+                    {
+                        retry: {
+                            retries: 0,
+                        },
+                    },
+                );
+
+                await expect(rh.resource(), 'resolve resource').to.eventually.be.null;
+
+                expect(rh.status).to.eq('error');
+            });
+
+            context('when a "open" flag passed', () => {
+                it('should retry', async () => {
+                    let res;
+                    let counter = 0;
+                    const rh = create(
+                        async () => {
+                            if (counter === 0) {
+                                counter++;
+                                throw new Error('Computer says "NO".');
+                            }
+
+                            const mock = new EmitterResourceMock();
+
+                            res = mock;
+                            await mock.open(100);
+
+                            return mock;
+                        },
+                        {
+                            retry: {
+                                retries: 1,
+                                maxRetryTime: 250,
+                            },
+                        },
+                    );
+
+                    const out = await rh.resource(true);
+                    expect(out, 'resolve resource').to.equal(res);
+                    expect(rh.status).to.eq('open');
+
+                    await expect(rh.close(), 'close resource').to.be.fulfilled;
+                }).timeout(10000);
             });
         });
     });

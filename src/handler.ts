@@ -2,7 +2,7 @@
 import * as events from 'events';
 import retry, { FailedAttemptError, AbortError } from 'p-retry';
 import { Lock } from './lock';
-import { OpenAbortedError, ResourceClosedError, CloseError, ResourceUnavailableError } from './errors';
+import { OpenAbortedError, CloseError } from './errors';
 import { Observable, Subscriber, Subscription, subscribe, AnyEvent } from './observable';
 import { Resource, ResourceCloser, ResourceFactory } from './resource';
 import { isErrored, isAborted, Status, isClosed, isOpen } from './status';
@@ -150,31 +150,22 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
     }
 
     /**
-     * Returns the resource value
+     * Returns the resource value if it's available, otherwise null.
+     * @param forceToOpen - If true, calles .open() if the handler is in "closed" or "error" states.
      */
-    public async resource(): Promise<T> {
+    public async resource(forceToOpen = false): Promise<T | null> {
+        // By loccking we we are waiting for the end of any pending operation.
         const release = await this.__lock.acquire();
 
-        try {
-            if (isOpen(this)) {
-                const res = this.__resource;
-
-                if (res != null) {
-                    return res;
-                }
-
-                return Promise.reject(new ResourceUnavailableError(this.name));
-            }
-
-            if (isClosed(this)) {
-                return Promise.reject(new ResourceClosedError(this.name));
-            }
-        } catch (e) {
-        } finally {
-            release();
+        if ((isClosed(this) || isErrored(this)) && forceToOpen) {
+            await this.__open();
         }
 
-        return Promise.reject(new ResourceUnavailableError(this.name));
+        const res = this.__resource != null ? this.__resource : null;
+
+        release();
+
+        return res;
     }
 
     /**

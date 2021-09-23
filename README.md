@@ -7,7 +7,7 @@ A thin wrapper around asynchronous resources
 
 ## Motivation
 
-There are some scenarios when you need to monitor an async resource like a database connection that does not have auto reconnection functionality in order to recover it from a failure. This package provdes a lightwight wrapper around such resources that allows you to easily restore their state.
+There are some scenarios when you need to monitor an async resource like a database connection that does not have auto reconnection functionality in order to recover it from a failure. This package provdes a lightwight wrapper around such resources that allows you to easily restore their state without any hussle.
 
 ## Installation
 
