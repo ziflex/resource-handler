@@ -162,10 +162,13 @@ describe('Resource handler', () => {
             expect(r.status()).to.eq('open');
         });
 
-        it('should automatically recover from disconnect', async () => {
+        it('should automatically recover from error', async () => {
+            const resources: ObservableResourceMock[] = [];
             const rh = await open(async () => {
                 const mock = new ObservableResourceMock();
                 await mock.open();
+
+                resources.push(mock);
 
                 return mock;
             });
@@ -187,6 +190,62 @@ describe('Resource handler', () => {
             await sleep(500);
 
             expect(r2.status()).to.eq('open');
+
+            expect(resources).to.have.length(2);
+        });
+
+        it('should automatically recover from close', async () => {
+            const resources: ObservableResourceMock[] = [];
+            const rh = await open(async () => {
+                const mock = new ObservableResourceMock();
+                await mock.open();
+
+                resources.push(mock);
+
+                return mock;
+            });
+
+            const onFailure = sinon.spy();
+
+            rh.subscribe('failure', onFailure);
+
+            const r = await rh.resource();
+
+            await r.close();
+
+            await sleep(100);
+
+            expect(r.status()).to.eq('closed');
+
+            const r2 = await rh.resource();
+
+            await sleep(500);
+
+            expect(r2.status()).to.eq('open');
+
+            expect(resources).to.have.length(2);
+        });
+
+        it("should should ignore recover from close when it' triggered by Handler", async () => {
+            const resources: ObservableResourceMock[] = [];
+            const rh = await open(async () => {
+                const mock = new ObservableResourceMock();
+                await mock.open();
+
+                resources.push(mock);
+
+                return mock;
+            });
+
+            await rh.close();
+
+            await sleep(100);
+
+            expect(rh.status).to.eq('closed');
+
+            await sleep(100);
+
+            expect(resources).to.have.length(1);
         });
 
         it('should allow to use custom closer', async () => {

@@ -289,6 +289,7 @@ export class ResourceHandler<T extends Resource> implements Observable<Event | A
                 // if it's not triggered by us, then re-open
                 // the underlying resource must be closed by ResourceHandler only
                 if (!isAborted(this)) {
+                    this.__onClose();
                     this.open();
                 }
             }),
